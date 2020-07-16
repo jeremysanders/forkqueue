@@ -4,9 +4,19 @@ poolqueue is a Python 3 module to support running tasks in separate forked proce
 
 As the module relies on a working `fork()` system call, it is only designed to work on Unix-like operating systems, such as Linux, Mac OS or WSL under Windows.
 
-poolqueue
-
 ## Examples
+This is a minimal example which prints 1, 2, 3, 4.
+```python
+from poolqueue import PoolQueue
+
+def myfunc(x):
+    return x+1
+
+with PoolQueue() as queue:
+     args = [(0,), (1,), (2,), (3,)]
+     for result in queue.process(myfunc, args):
+         print(result)
+```
 
 This example prints out the sequence of values 1+(1+1)+(1+2+3), 2+(2+1)+(1+2+3), ... . It demonstrates calling the nested function `myfunc` in four different processes with a set of input parameters (here `args`). 
 
@@ -27,7 +37,41 @@ if __name__ == '__main__':
     main()
 ```
 
-TODO: add more examples
+Here is an example which uses the add interface to add jobs, printing 0, 1, 4.
+
+```python
+from poolqueue import PoolQueue
+
+def myfunc1(x):
+    return x**2
+
+def myfunc2(x):
+    return x
+
+with PoolQueue() as queue:
+    queue.add(myfunc1, (0,))
+    queue.add(myfunc2, (1,))
+    queue.add(myfunc1, (2,))
+
+    for result in queue.results():
+        print(result)
+```
+
+Using `ordered=False` the results can be returned in any order. This makes returning results quicker and uses less memory for storing results until ready. The `retn_ids=True` option also returns the job ID, allowing results to be identified. This example returns results in any order, populating an output array, and writing `[0, 1, 4, 9]`.
+
+```python
+from poolqueue import PoolQueue
+
+def myfunc(x,y):
+    return x*y
+
+out = [None]*4
+with PoolQueue(ordered=False, retn_ids=True) as queue:
+    args = ((i,i) for i in range(4))
+    for jobid, result in queue.process(myfunc, args):
+        out[jobid] = result
+print(out)
+```
 
 ## API
 
