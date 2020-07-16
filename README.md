@@ -143,6 +143,7 @@ class PoolQueue:
         If retn_ids is True, then each result is returned as (job_id, result).
         If ordered is True, then results from jobs are yielded in order. Otherwise
         they are returned in any order.
+	"""
 
     def process(self, func, iterable, argsv=None, interval=None):
         """Process jobs generated from an iterable, yielding results.
