@@ -57,7 +57,7 @@ with PoolQueue() as queue:
         print(result)
 ```
 
-Using `ordered=False` the results can be returned in any order. This makes returning results quicker and uses less memory for storing results until ready. The `retn_ids=True` option also returns the job ID, allowing results to be identified. This example returns results in any order, populating an output array, and writing `[0, 1, 4, 9]`.
+Using `ordered=False` the results can be returned in any order. This makes returning results quicker and uses less memory for storing results until ready. The `retn_ids=True` option also returns the job ID, allowing results to be identified. Job IDs can either be given, or are automatically created from an integer incrementing from 0. This example returns results in any order, populating an output array, and writing `[1, 4, 9, 16]`.
 
 ```python
 from poolqueue import PoolQueue
@@ -67,7 +67,7 @@ def myfunc(x,y):
 
 out = [None]*4
 with PoolQueue(ordered=False, retn_ids=True) as queue:
-    args = ((i,i) for i in range(4))
+    args = ((i+1,i+1) for i in range(4))
     for jobid, result in queue.process(myfunc, args):
         out[jobid] = result
 print(out)
