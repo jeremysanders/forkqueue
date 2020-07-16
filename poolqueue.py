@@ -24,28 +24,21 @@ _all_pids = {}
 def _cleanup():
     for socks in _all_socks.values():
         for sock in socks:
-            sendobj(sock, None)
+            _sendobj(sock, None)
         socks.clear()
     for pids in _all_pids.values():
         for pid in pids:
             os.waitpid(pid, 0)
         pids.clear()
 
-def socksend(sock, data):
-    while len(data)>0:
-        size = socksend(sock, data)
-        if size==len(data):
-            return
-        data = data[size:]
-
-def sendobj(sock, obj):
+def _sendobj(sock, obj):
     msg = pickle.dumps(obj)
     hdr = struct.pack('@Q', len(msg))
     comb = hdr+msg
     sock.send(comb)
 
 _hdrsize = struct.calcsize('@Q')
-def recvobj(sock):
+def _recvobj(sock):
     """Receive object from socket."""
     # this is slightly more complex then sending to avoid calling recv() often
     read = b''
@@ -60,14 +53,14 @@ def recvobj(sock):
     obj = pickle.loads(read)
     return obj
 
-def worker(sock, initfunc, env):
+def _worker(sock, initfunc, env):
     """Repeat, processing new requests."""
 
     if initfunc is not None:
         initfunc()
 
     while True:
-        obj = recvobj(sock)
+        obj = _recvobj(sock)
         if obj is None:
             # time to finish
             return
@@ -83,24 +76,37 @@ def worker(sock, initfunc, env):
             e.backtrace = traceback.format_exc()
             retn = e
 
-        sendobj(sock, (jobid, retn))
+        _sendobj(sock, (jobid, retn))
 
 class PoolQueueException(RuntimeError):
     pass
 
 class PoolQueue:
-    """Queue to process tasks.
+    """Queue to process tasks in separate threads.
 
-    :par numforks: number of processes to launch to process tasks
-    :par initfunc: function to call when task is started
-    :par reraise: if there is an exception in the task, raise an exception. Otherwise return it as a task result.
-    :par ordered: results are returned in the order that tasks are added. If False, they are returned as soon as they are available.
-    :par retn_ids: the task result is (task_id, result), rather than result. task_ids are automatically assigned if not provided.
-    :par env: special optional environment. This is a dict (e.g. locals()) which is used to run functions without pickling them. Useful for closures/nested functions.
+    Main class of the poolqueue module.
     """
 
     def __init__(self, numforks=16, initfunc=None, reraise=True,
                  ordered=True, retn_ids=False, env=None):
+
+        """
+        Initialise the class
+
+        Args:
+          numforks (int): Number of processes to launch to process tasks.
+          initfunc (callable): this optional function is called in forked processes when starting
+          reraise (bool): If an exception is raised in the forked process, reraise it in the main
+            process. If this is not set, return the exception instead.
+          ordered (bool): If True, yield results in the order tasks are added. Otherwise return
+            them in any order.
+          retn_ids (bool): If True, instead of yielding only the result, a tuple of
+            (job_id, result) is yielded instead.
+          env (dict): A dictionary of callables (e.g. from locals()). If a task uses a function
+            in this dict, it is passed to the forked process by name, rather than being
+            pickled. This allows the forked process to run, for example, nested functions.
+        """
+
         self.reraise = reraise
         self.ordered = ordered
         self.retn_ids = retn_ids
@@ -135,7 +141,7 @@ class PoolQueue:
                 _all_socks.clear()
                 _all_pids.clear()
                 # run worker function and exit
-                worker(s1, initfunc, env)
+                _worker(s1, initfunc, env)
                 sys.exit(0)
             else:
                 # server
@@ -153,11 +159,21 @@ class PoolQueue:
         while self.freesocks and self.jobs:
             job = self.jobs.pop(0)
             sock = self.freesocks.pop()
-            sendobj(sock, job)
+            _sendobj(sock, job)
             self.busysocks.add(sock)
 
     def add(self, func, args, argsv=None, jobid=None):
         """Adds a job to the queue.
+
+        Args:
+          func (callable): Function to call to execute task.
+          args (tuple): Arguments to give to the callable.
+          argsv (dict): Optional named arguments to pass to the callable.
+          jobid (int/str): Unique ID to be assigned the job. If not given, these are generated
+            to be incrementing integers starting from 0.
+
+        Returns:
+          None
         """
         if jobid is None:
             jobid = self.jobctr
@@ -177,8 +193,14 @@ class PoolQueue:
         self._sendjobs()
 
     def poll(self, timeout=0):
-        """Poll for results.
-        Return True if available
+        """Poll the forked processes for results.
+
+        Args:
+          timeout (float/None): Wait for up to timeout seconds until there is a result.
+            0 means do not wait at all. None will wait forever.
+
+        Returns:
+          bool: Whether a result is available.
         """
 
         readable, writable, errors = select.select(
@@ -186,7 +208,7 @@ class PoolQueue:
 
         if readable:
             for sock in readable:
-                jobid, result = recvobj(sock)
+                jobid, result = _recvobj(sock)
                 if self.reraise and isinstance(result, Exception):
                     raise PoolQueueException(
                         'Exception running task:\n%s' % (
@@ -199,14 +221,23 @@ class PoolQueue:
         return False
 
     def wait(self):
-        """Wait until all jobs are processed."""
+        """Wait until all jobs are processed.
+
+        Returns:
+          None
+        """
 
         while self.jobs or self.busysocks:
             self._sendjobs()
             self.poll(timeout=1)
 
-    def iter_results(self):
-        """Iterate over any returned results."""
+    def yield_results(self):
+        """Yield any results which are currently available.
+
+        If retn_ids is True, then each result is returned as (job_id, result).
+        If ordered is True, then results from jobs are yielded in order. Otherwise
+        they are returned in any order.
+        """
         if self.ordered:
             # must return items in order
             while self.jobids:
@@ -228,9 +259,23 @@ class PoolQueue:
                 yield result
 
     def process(self, func, iterable, argsv=None, interval=None):
-        """Process jobs from an iterable, returning results.
+        """Process jobs generated from an iterable, yielding results.
 
-        func(args, **argsv) is called where args iterates over iterable
+        Jobs are added for each item of the iterable. func(args, **argsv) is called
+        in the subprocess where args is an item in the iterable.
+
+        If retn_ids is True, then each result is returned as (job_id, result).
+        If ordered is True, then results from jobs are yielded in order. Otherwise
+        they are returned in any order.
+
+        Args:
+          func (callable): Function to call.
+          iterable (iterable): An iterable yielding sets of tuples which act as the
+            arguments to fhe function being called.
+          argsv (dict): If given, these named arguments are given to all calls to the
+            function.
+          interval (float): How often to check for results (seconds). If None, then
+            we wait until a result is ready.
         """
         if argsv is None:
             argsv = {}
@@ -239,36 +284,45 @@ class PoolQueue:
             while not self.freesocks:
                 self.poll(timeout=interval)
             self.add(func, args, argsv=argsv)
-            yield from self.iter_results()
+            yield from self.yield_results()
 
         yield from self.results(interval=interval)
 
     def results(self, poll=False, interval=None):
-        """Process all jobs, return results as an iterable.
+        """Process remaining jobs, yielding results.
 
-        poll: exit when no more results are available
+        If retn_ids is True, then each result is returned as (job_id, result).
+        If ordered is True, then results from jobs are yielded in order. Otherwise
+        they are returned in any order.
 
+        Args:
+          poll (bool): Yield results which are available, then return. Otherwise, wait
+            until all jobs have finished.
         """
 
         if poll:
             self._sendjobs()
             self.poll()
-            yield from self.iter_results()
+            yield from self.yield_results()
         else:
             while self.jobs or self.busysocks or self.jobresults:
                 self._sendjobs()
-                yield from self.iter_results()
+                yield from self.yield_results()
                 if self.busysocks:
                     self.poll(timeout=interval)
 
     def finish(self):
-        """Finish processing current jobs. Exit subproceses."""
+        """Finish processing current jobs. Exit subproceses.
+
+        Returns:
+          None
+        """
 
         self.wait()
 
         # signal to finish up
         for sock in self.socks:
-            sendobj(sock, None)
+            _sendobj(sock, None)
 
         for pid in self.pids:
             res = os.waitpid(pid, 0)
@@ -284,9 +338,11 @@ class PoolQueue:
             del _all_pids[id(self.pids)]
 
     def __enter__(self):
+        """Return context manager for queue."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager for queue."""
         self.finish()
 
 ###################################################################################
@@ -325,7 +381,7 @@ def test():
         q.add(_testfunc2, (5,), {'addon':10})
         q.add(_testfunc2, (-1,), {'addon':3})
         q.wait()
-        res = tuple(q.iter_results())
+        res = tuple(q.yield_results())
         assert res == (44, '81', '68')
 
     # test using a nested function and env
