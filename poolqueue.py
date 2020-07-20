@@ -142,7 +142,9 @@ class PoolQueue:
                 _all_pids.clear()
                 # run worker function and exit
                 _worker(s1, initfunc, env)
-                sys.exit(0)
+                # this is a bit of a nasty way to exit, but ipython breaks
+                # otherwise
+                os._exit(0)
             else:
                 # server
                 s1.close()
