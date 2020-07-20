@@ -1,6 +1,6 @@
 # poolqueue
 
-poolqueue is a Python 3 module to support running tasks in separate forked proceses. It differs from other similar modules, like multiprocessing, as it relies on the presence of a `fork()` operating system call. This allows it to run tasks, for example, calling closures or nested functions. The separate processesc an easily share input data as they inherit the same environment from when the queue is constructed, saving memory usage. There is very little overhead in creating a new pool of forked processes compared to separate processes. Because the code runs separate processes, rather than threads, it is not affected by the Python global-interpreter-lock (GIL).
+poolqueue is a Python 3 module to support running tasks in separate forked proceses. It differs from other similar modules, like multiprocessing, as it relies on the presence of a `fork()` operating system call. This allows it to run tasks, for example, calling closures or nested functions. The separate processes can easily share input data as they inherit the same environment from when the queue is constructed, saving memory usage. There is very little overhead in creating a new pool of forked processes. Because the module uses separate processes, rather than threads, it is not affected by the Python global-interpreter-lock (GIL).
 
 As the module relies on a working `fork()` system call, it is only designed to work on Unix-like operating systems, such as Linux, Mac OS or WSL under Windows.
 
@@ -196,3 +196,11 @@ class PoolQueue:
 When a PoolQueue is created, the `fork()` call is used to create `numforks` processes. These processes listen on a Unix domain socket for input. Tasks are added onto an input queue. If any of the processes are available for running tasks, then the function to run and its arguments are sent over the socket after being pickled. The remote process runs this task and returns the result back over the socket. The PoolQueue monitors the remote processes  using the `select` system call on the list of sockets. The queue keeps tracks which processes are free and which are busy. When the queue is finished, the remote processes are sent a special command causing them to exit.
 
 If the function called by the task is passed in the environment `env` passed to the `__init__` function, then the name of the task is sent to the remote process is sent to the remote process, rather than the pickled function. This allows nested or otherwise unpicklable callables to be used in the tasks.
+
+## Caveats
+
+* As mentioned above, this module will not work on native Windows Python installations. It should work on WSL, however.
+
+* There are problems when mixing threads and forked processes.
+
+* There may be some problems if your function uses existing shared resources, for example open files. By default Python does not allow file descriptors to be inherited. See https://www.python.org/dev/peps/pep-0446/ . You may wish to use `os.set_inheritable` to avoid this problem.
