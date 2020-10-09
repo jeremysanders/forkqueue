@@ -1,8 +1,8 @@
-# PoolQueue is a simple module for running tasks on a Queue in
+# ForkQueue is a simple module for running tasks on a Queue in
 # a pool of different processes.
 #
 # Copyright Jeremy Sanders 2020
-# Source control: https://github.com/jeremysanders/poolqueue
+# Source control: https://github.com/jeremysanders/forkqueue
 #
 # MIT Licensed (see LICENSE.txt)
 
@@ -78,13 +78,13 @@ def _worker(sock, initfunc, env):
 
         _sendobj(sock, (jobid, retn))
 
-class PoolQueueException(RuntimeError):
+class ForkQueueException(RuntimeError):
     pass
 
-class PoolQueue:
+class ForkQueue:
     """Queue to process tasks in separate threads.
 
-    Main class of the poolqueue module.
+    Main class of the forkqueue module.
     """
 
     def __init__(self, numforks=16, initfunc=None, reraise=True,
@@ -212,7 +212,7 @@ class PoolQueue:
             for sock in readable:
                 jobid, result = _recvobj(sock)
                 if self.reraise and isinstance(result, Exception):
-                    raise PoolQueueException(
+                    raise ForkQueueException(
                         'Exception running task:\n%s' % (
                             result.backtrace))
 
@@ -368,17 +368,17 @@ def _testiter():
         yield (i,)
 
 def test():
-    with PoolQueue(numforks=2, initfunc=_testinit, retn_ids=False, ordered=True) as q:
+    with ForkQueue(numforks=2, initfunc=_testinit, retn_ids=False, ordered=True) as q:
         res = tuple(q.process(_testfunc, _testiter()))
         assert res == (42,43,44,45,46)
-    with PoolQueue(numforks=3, initfunc=_testinit, retn_ids=False, ordered=False) as q:
+    with ForkQueue(numforks=3, initfunc=_testinit, retn_ids=False, ordered=False) as q:
         res = sorted(list(q.process(_testfunc, _testiter())))
         assert res == [42,43,44,45,46]
-    with PoolQueue(numforks=4, initfunc=_testinit, retn_ids=True, ordered=True) as q:
+    with ForkQueue(numforks=4, initfunc=_testinit, retn_ids=True, ordered=True) as q:
         res = tuple(q.process(_testfunc, _testiter()))
         assert res == ((0,42),(1,43),(2,44),(3,45),(4,46))
 
-    with PoolQueue(numforks=1, initfunc=_testinit) as q:
+    with ForkQueue(numforks=1, initfunc=_testinit) as q:
         q.add(_testfunc, (2,))
         q.add(_testfunc2, (5,), {'addon':10})
         q.add(_testfunc2, (-1,), {'addon':3})
@@ -390,11 +390,11 @@ def test():
     bigdata = [1,2,3,4,5,6]
     def nestfunc(a):
         return a+sum(bigdata)
-    with PoolQueue(numforks=4, env=locals()) as q:
+    with ForkQueue(numforks=4, env=locals()) as q:
         for i, res in enumerate(q.process(nestfunc, ((j+1,) for j in range(128)))):
             assert res == 21+i+1
 
-    q = PoolQueue(numforks=1, initfunc=_testinit)
+    q = ForkQueue(numforks=1, initfunc=_testinit)
     q.finish()
 
     assert(_all_socks=={} and _all_pids=={})

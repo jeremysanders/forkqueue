@@ -5,8 +5,8 @@ from distutils.core import setup
 import setuptools
 
 urls = {
-    'Source': 'https://github.com/jeremysanders/poolqueue',
-    'Tracker': 'https://github.com/jeremysanders/poolqueue/issues',
+    'Source': 'https://github.com/jeremysanders/forkqueue',
+    'Tracker': 'https://github.com/jeremysanders/forkqueue/issues',
 }
 
 classifiers=[
@@ -29,21 +29,22 @@ classifiers=[
     'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
 ]
 
 if not hasattr(os, 'fork'):
     raise RuntimeError('This module only works on operating systems which provide a fork() function')
 
 setup(
-    name='poolqueue',
+    name='forkqueue',
     version='1.0',
     description='Process tasks from a queue using forked processes',
     author='Jeremy Sanders',
     author_email='jeremy@jeremysanders.net',
-    url='https://github.com/jeremysanders/poolqueue',
+    url='https://github.com/jeremysanders/forkqueue',
     project_urls=urls,
     license='MIT',
     python_requires='~=3.3',
     classifiers=classifiers,
-    py_modules=['poolqueue'],
+    py_modules=['forkqueue'],
 )

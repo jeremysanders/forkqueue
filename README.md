@@ -1,18 +1,18 @@
-# poolqueue
+# forkqueue
 
-poolqueue is a Python 3 module to support running tasks in separate forked proceses. It differs from other similar modules, like multiprocessing, as it relies on the presence of a `fork()` operating system call. This allows it to run tasks, for example, calling closures or nested functions. The separate processes can easily share input data as they inherit the same environment from when the queue is constructed, saving memory usage. There is very little overhead in creating a new pool of forked processes. Because the module uses separate processes, rather than threads, it is not affected by the Python global-interpreter-lock (GIL).
+forkqueue is a Python 3 module to support running tasks in separate forked proceses. It differs from other similar modules, like multiprocessing, as it relies on the presence of a `fork()` operating system call. This allows it to run tasks, for example, calling closures or nested functions. The separate processes can easily share input data as they inherit the same environment from when the queue is constructed, saving memory usage. There is very little overhead in creating a new pool of forked processes. Because the module uses separate processes, rather than threads, it is not affected by the Python global-interpreter-lock (GIL).
 
 As the module relies on a working `fork()` system call, it is only designed to work on Unix-like operating systems, such as Linux, Mac OS or WSL under Windows.
 
 ## Examples
 This is a minimal example which prints 1, 2, 3, 4.
 ```python
-from poolqueue import PoolQueue
+from forkqueue import ForkQueue
 
 def myfunc(x):
     return x+1
 
-with PoolQueue() as queue:
+with ForkQueue() as queue:
      args = [(0,), (1,), (2,), (3,)]
      for result in queue.process(myfunc, args):
          print(result)
@@ -21,14 +21,14 @@ with PoolQueue() as queue:
 This example prints out the sequence of values 1+(1+1)+(1+2+3), 2+(2+1)+(1+2+3), ... . It demonstrates calling the nested function `myfunc` in four different processes with a set of input parameters (here `args`). 
 
 ```python
-from poolqueue import PoolQueue
+from forkqueue import ForkQueue
 
 def main()
     c = [1,2,3]
     def myfunc(a, b):
         return a+b+sum(c)
 
-    with PoolQueue(numforks=4, env=locals()) as queue:
+    with ForkQueue(numforks=4, env=locals()) as queue:
         args = ((a, a+1) for a in range(100))
         for result in queue.process(myfunc, args):
             print(result)
@@ -40,7 +40,7 @@ if __name__ == '__main__':
 Here is an example which uses the add interface to add jobs, printing 0, 1, 4.
 
 ```python
-from poolqueue import PoolQueue
+from forkqueue import ForkQueue
 
 def myfunc1(x):
     return x**2
@@ -48,7 +48,7 @@ def myfunc1(x):
 def myfunc2(x):
     return x
 
-with PoolQueue() as queue:
+with ForkQueue() as queue:
     queue.add(myfunc1, (0,))
     queue.add(myfunc2, (1,))
     queue.add(myfunc1, (2,))
@@ -60,13 +60,13 @@ with PoolQueue() as queue:
 Using `ordered=False` the results can be returned in any order. This makes returning results quicker and uses less memory for storing results until ready. The `retn_ids=True` option also returns the job ID, allowing results to be identified. Job IDs can either be given, or are automatically created from an integer incrementing from 0. This example returns results in any order, populating an output array, and writing `[1, 4, 9, 16]`.
 
 ```python
-from poolqueue import PoolQueue
+from forkqueue import ForkQueue
 
 def myfunc(x,y):
     return x*y
 
 out = [None]*4
-with PoolQueue(ordered=False, retn_ids=True) as queue:
+with ForkQueue(ordered=False, retn_ids=True) as queue:
     args = ((i+1,i+1) for i in range(4))
     for jobid, result in queue.process(myfunc, args):
         out[jobid] = result
@@ -75,14 +75,14 @@ print(out)
 
 ## API
 
-The interface to the module is through a class called PoolQueue. This is usually used as a context manager (with statement) so that the forked processes are properly ended. Alternatively, the class can also be constructed, used, then `finish()` can be used to clean up, although the context manager is recommended.
+The interface to the module is through a class called ForkQueue. This is usually used as a context manager (with statement) so that the forked processes are properly ended. Alternatively, the class can also be constructed, used, then `finish()` can be used to clean up, although the context manager is recommended.
 
 
 ```python
-class PoolQueue:
+class ForkQueue:
     """Queue to process tasks in separate threads.
 
-    Main class of the poolqueue module.
+    Main class of the forkqueue module.
     """
 
     def __init__(self, numforks=16, initfunc=None, reraise=True,
@@ -193,7 +193,7 @@ class PoolQueue:
 
 ## How it works
 
-When a PoolQueue is created, the `fork()` call is used to create `numforks` processes. These processes listen on a Unix domain socket for input. Tasks are added onto an input queue. If any of the processes are available for running tasks, then the function to run and its arguments are sent over the socket after being pickled. The remote process runs this task and returns the result back over the socket. The PoolQueue monitors the remote processes  using the `select` system call on the list of sockets. The queue keeps tracks which processes are free and which are busy. When the queue is finished, the remote processes are sent a special command causing them to exit.
+When a ForkQueue is created, the `fork()` call is used to create `numforks` processes. These processes listen on a Unix domain socket for input. Tasks are added onto an input queue. If any of the processes are available for running tasks, then the function to run and its arguments are sent over the socket after being pickled. The remote process runs this task and returns the result back over the socket. The ForkQueue monitors the remote processes  using the `select` system call on the list of sockets. The queue keeps tracks which processes are free and which are busy. When the queue is finished, the remote processes are sent a special command causing them to exit.
 
 If the function called by the task is passed in the environment `env` passed to the `__init__` function, then the name of the task is sent to the remote process is sent to the remote process, rather than the pickled function. This allows nested or otherwise unpicklable callables to be used in the tasks.
 
