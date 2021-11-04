@@ -165,6 +165,12 @@ class ForkQueue:
             we wait until a result is ready.
         """
 
+    def map(self, func, *args):
+        """A map like function for the queue.
+
+        This makes ForkQueue suitable as a replacement for a multiprocessing.Pool() object.
+        """
+
     def results(self, poll=False, interval=None):
         """Process remaining jobs, yielding results.
 
