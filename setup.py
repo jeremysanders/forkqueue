@@ -30,6 +30,8 @@ classifiers=[
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
 ]
 
 if not hasattr(os, 'fork'):
@@ -37,7 +39,7 @@ if not hasattr(os, 'fork'):
 
 setup(
     name='forkqueue',
-    version='1.0',
+    version='1.1',
     description='Process tasks from a queue using forked processes',
     author='Jeremy Sanders',
     author_email='jeremy@jeremysanders.net',
