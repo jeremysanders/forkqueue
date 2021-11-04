@@ -32,7 +32,7 @@ def _cleanup():
         pids.clear()
 
 def _sendobj(sock, obj):
-    msg = pickle.dumps(obj)
+    msg = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
     hdr = struct.pack('@Q', len(msg))
     comb = hdr+msg
     sock.send(comb)
