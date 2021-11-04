@@ -290,6 +290,15 @@ class ForkQueue:
 
         yield from self.results(interval=interval)
 
+    def map(self, func, *args):
+        """A map like function for the queue.
+
+        This makes ForkQueue suitable for feeding into emcee or zeus,
+        as a replacement for a multiprocessing.Pool() object.
+        """
+
+        yield from self.process(func, zip(*args))
+
     def results(self, poll=False, interval=None):
         """Process remaining jobs, yielding results.
 
