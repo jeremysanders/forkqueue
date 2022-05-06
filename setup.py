@@ -39,7 +39,7 @@ if not hasattr(os, 'fork'):
 
 setup(
     name='forkqueue',
-    version='1.1',
+    version='1.3',
     description='Process tasks from a queue using forked processes',
     author='Jeremy Sanders',
     author_email='jeremy@jeremysanders.net',
