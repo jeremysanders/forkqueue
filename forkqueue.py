@@ -211,14 +211,16 @@ class ForkQueue:
         if readable:
             for sock in readable:
                 jobid, result = _recvobj(sock)
+                self.busysocks.remove(sock)
+                self.freesocks.add(sock)
+
                 if self.reraise and isinstance(result, Exception):
+                    self.jobresults[jobid] = None
                     raise ForkQueueException(
                         'Exception running task:\n%s' % (
                             result.backtrace))
-
-                self.jobresults[jobid] = result
-                self.busysocks.remove(sock)
-                self.freesocks.add(sock)
+                else:
+                    self.jobresults[jobid] = result
             return True
         return False
 
