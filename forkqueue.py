@@ -46,9 +46,14 @@ def _recvobj(sock):
         read += sock.recv(4096)
 
     size = struct.unpack('@Q', read[:_hdrsize])[0]
-    read = read[_hdrsize:]
-    while len(read) < size:
-        read += sock.recv(size-len(read))
+
+    read = [read[_hdrsize:]]
+    totlen = len(read[-1])
+    while totlen < size:
+        buf = sock.recv(min(size-totlen, 1<<22))
+        totlen += len(buf)
+        read.append(buf)
+    read = b''.join(read)
 
     obj = pickle.loads(read)
     return obj
