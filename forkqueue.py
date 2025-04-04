@@ -163,11 +163,16 @@ class ForkQueue:
 
     def _sendjobs(self):
         """Send any remaining jobs if there are free workers."""
+
         while self.freesocks and self.jobs:
             job = self.jobs.pop(0)
             sock = self.freesocks.pop()
             _sendobj(sock, job)
             self.busysocks.add(sock)
+
+    def slot_available(self):
+        """Are there any free slots available?"""
+        return bool(self.freesocks)
 
     def add(self, func, args, argsv=None, jobid=None):
         """Adds a job to the queue.
@@ -239,6 +244,13 @@ class ForkQueue:
         while self.jobs or self.busysocks:
             self._sendjobs()
             self.poll(timeout=1)
+
+    def result_available(self):
+        """Is there a result available to get?"""
+        if self.ordered:
+            return bool(self.jobids) and self.jobids[0] in self.jobresults
+        else:
+            return bool(self.jobresults)
 
     def yield_results(self):
         """Yield any results which are currently available.
